@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Fleet Maintenance System</title>
+<style>
+body{font-family:Arial;background:#eef3f7;margin:20px}
+h1{margin-bottom:15px}
+.card{background:white;padding:16px;border-radius:6px;margin-bottom:20px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+input,select,button{padding:8px;margin:4px}
+button{cursor:pointer}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{border:1px solid #ddd;padding:8px;text-align:left}
+th{background:#333;color:white}
+.hidden{display:none}
+.label-field{margin-right:10px;display:inline-block;min-width:160px}
+</style>
+</head>
+<body>
+
+<h1>Fleet Maintenance System</h1>
+
+<!-- ================= FLEET PAGE ================= -->
+<div id="fleetPage">
+
+<div class="card">
+<h3>Add / Delete / Edit Vehicle</h3>
+<input id="vehicleId" placeholder="Vehicle ID">
+<input id="vin" placeholder="VIN">
+<input id="tag" placeholder="Tag / Plate">
+<input id="year" placeholder="Year">
+<input id="ramp" placeholder="Ramp">
+<input id="model" placeholder="Model">
+<input id="mileage" type="number" placeholder="Current Mileage">
+<button onclick="saveVehicle()">Save Vehicle</button>
+<button onclick="clearVehicleForm()">Clear</button>
+</div>
+
+<div class="card">
+<h3>Yearly Maintenance Cost Lookup</h3>
+<input id="lookupYear" type="number" placeholder="Enter Year">
+<button onclick="lookupYearlyCost()">Lookup</button>
+<span id="yearlyCostResult" style="margin-left:10px;font-weight:bold"></span>
+</div>
+
+<div class="card">
+<h3 style="margin-bottom:0;">Fleet Vehicles</h3>
+<div style="overflow-x:auto;border:1px solid #ccc;border-radius:6px;margin-top:5px;padding:5px;background:white;">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>VIN</th>
+<th>Tag</th>
+<th>Year</th>
+<th>Model</th>
+<th>Mileage</th>
+<th>Total Maintenance</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="fleetTable"></tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+<!-- ================= VEHICLE PAGE ================= -->
+<div id="vehiclePage" class="hidden">
+
+<button onclick="backToFleet()">← Back to Fleet</button>
+<h2 id="vehicleTitle"></h2>
+
+<div class="card">
+<h3>Vehicle Information / Inspections</h3>
+
+<div>
+<span class="label-field">ASE Inspection Date: <input id="aseDate" type="date"></span>
+<span class="label-field">PMI Inspection Date: <input id="pmiDate" type="date"></span>
+<span class="label-field">Wheelchair Inspection Date: <input id="wheelchairDate" type="date"></span>
+<span class="label-field">Oil Change Date: <input id="oilChangeDate" type="date"></span>
+<span class="label-field">Registration Expiration Date: <input id="registrationDate" type="date"></span>
+</div>
+
+<button onclick="saveVehicleInspections()">Save Vehicle Inspections</button>
+
+</div>
+
+<div class="card">
+<h3>Vehicle Documents</h3>
+
+<input type="file" id="vehicleFiles" multiple>
+<button onclick="uploadVehicleFiles()">Upload Files</button>
+
+<table>
+<thead>
+<tr>
+<th>File Name</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="vehicleFilesTable"></tbody>
+</table>
+
+</div>
+
+<div class="card">
+
+<h3>Add / Edit Maintenance</h3>
+
+<input id="serviceDate" type="date">
+
+<select id="serviceType">
+<option value="">Service Type</option>
+<option>Oil Change</option>
+<option>Brakes</option>
+<option>Tires</option>
+<option>Transmission</option>
+<option>AC System Repairs</option>
+<option>ASE Inspections</option>
+<option>Bus Cleaning</option>
+<option>Coolant System Repairs</option>
+<option>Electrical System Repairs</option>
+<option>Engine Repairs</option>
+<option>Exhaust System Repairs</option>
+<option>Fuel System Repairs</option>
+<option>General Service</option>
+<option>Lift Inspection</option>
+<option>Lift Repairs</option>
+<option>Preventative Maintenance PMI</option>
+<option>Suspension & Steering Repairs</option>
+<option>Transmission Repairs</option>
+<option>Other</option>
+</select>
+
+<input id="vendor" placeholder="Vendor / Mechanic">
+<input id="serviceDetails" placeholder="Service Details">
+<input id="serviceMileage" type="number" placeholder="Mileage">
+<input id="serviceCost" type="number" placeholder="Cost">
+<input id="serviceInvoice" type="number" placeholder="Invoice">
+
+<button onclick="saveMaintenance()">Save Maintenance</button>
+<button onclick="clearMaintenanceForm()">Clear</button>
+
+</div>
+
+<div class="card">
+
+<h3>Maintenance History</h3>
+
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Service Type</th>
+<th>Vendor</th>
+<th>Details</th>
+<th>Mileage</th>
+<th>Cost</th>
+<th>Invoice</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="maintenanceTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+let vehicles = JSON.parse(localStorage.getItem("vehicles") || "[]");
+let maintenance = JSON.parse(localStorage.getItem("maintenance") || "[]");
+let vehicleFiles = JSON.parse(localStorage.getItem("vehicleFiles") || "[]");
+
+let editingVehicle = null;
+let editingMaintenance = null;
+let currentVehicle = null;
+
+function saveData(){
+localStorage.setItem("vehicles", JSON.stringify(vehicles));
+localStorage.setItem("maintenance", JSON.stringify(maintenance));
+localStorage.setItem("vehicleFiles", JSON.stringify(vehicleFiles));
+}
+
+function saveVehicleInspections(){
+
+if(currentVehicle===null) return;
+
+let v = vehicles.find(v=>v.vehicleId===currentVehicle);
+
+if(v){
+
+v.aseDate = aseDate.value;
+v.pmiDate = pmiDate.value;
+v.wheelchairDate = wheelchairDate.value;
+v.oilChangeDate = oilChangeDate.value;
+v.registrationDate = registrationDate.value;
+
+saveData();
+renderFleet();
+alert("Vehicle inspections saved.");
+
+}
+
+}
+
+function renderVehicleInspections(){
+
+if(currentVehicle===null) return;
+
+let v = vehicles.find(v=>v.vehicleId===currentVehicle);
+
+if(v){
+
+aseDate.value = v.aseDate||"";
+pmiDate.value = v.pmiDate||"";
+wheelchairDate.value = v.wheelchairDate||"";
+oilChangeDate.value = v.oilChangeDate||"";
+registrationDate.value = v.registrationDate||"";
+
+}
+
+}
+
+function saveVehicle(){
+
+let v={
+
+vehicleId: vehicleId.value,
+vin: vin.value,
+tag: tag.value,
+year: year.value,
+ramp: ramp.value,
+model: model.value,
+mileage: mileage.value
+
+};
+
+if(!v.vehicleId){alert("Vehicle ID required"); return;}
+
+if(editingVehicle!==null){
+
+vehicles[editingVehicle]=v;
+editingVehicle=null;
+
+}else{
+
+vehicles.push(v);
+
+}
+
+saveData();
+renderFleet();
+clearVehicleForm();
+
+}
+
+function editVehicle(index){
+
+let v=vehicles[index];
+
+vehicleId.value=v.vehicleId;
+vin.value=v.vin;
+tag.value=v.tag;
+year.value=v.year;
+ramp.value=v.ramp;
+model.value=v.model;
+mileage.value=v.mileage;
+
+editingVehicle=index;
+
+window.scrollTo(0,0);
+
+}
+
+function clearVehicleForm(){
+
+vehicleId.value="";
+vin.value="";
+tag.value="";
+year.value="";
+ramp.value="";
+model.value="";
+mileage.value="";
+
+editingVehicle=null;
+
+}
+
+function deleteVehicle(index){
+
+if(confirm("Are you sure you want to delete this vehicle? All its maintenance records will also be deleted.")){
+
+let vehicleId = vehicles[index].vehicleId;
+
+vehicles.splice(index,1);
+
+maintenance = maintenance.filter(m => m.vehicle !== vehicleId);
+
+vehicleFiles = vehicleFiles.filter(f => f.vehicle !== vehicleId);
+
+saveData();
+renderFleet();
+
+}
+
+}
+
+function renderFleet(){
+
+let rows="";
+
+vehicles.forEach((v,i)=>{
+
+let total = maintenance
+.filter(m=>m.vehicle===v.vehicleId)
+.reduce((s,m)=>s+Number(m.cost||0),0);
+
+rows += `<tr>
+
+<td>${v.vehicleId}</td>
+<td>${v.vin||""}</td>
+<td>${v.tag||""}</td>
+<td>${v.year||""}</td>
+<td>${v.model||""}</td>
+<td>${v.mileage||""}</td>
+<td>$${total}</td>
+
+<td>
+
+<button onclick="openVehicle('${v.vehicleId}')">Open</button>
+<button onclick="editVehicle(${i})">Edit</button>
+<button onclick="deleteVehicle(${i})">Delete</button>
+
+</td>
+
+</tr>`;
+
+});
+
+fleetTable.innerHTML=rows;
+
+}
+
+function openVehicle(id){
+
+currentVehicle=id;
+
+fleetPage.classList.add("hidden");
+vehiclePage.classList.remove("hidden");
+
+vehicleTitle.innerText="Vehicle: "+id;
+
+renderMaintenance();
+renderVehicleInspections();
+renderVehicleFiles();
+
+}
+
+function backToFleet(){
+
+vehiclePage.classList.add("hidden");
+fleetPage.classList.remove("hidden");
+
+currentVehicle=null;
+
+}
+
+function saveMaintenance(){
+
+let rec={
+
+vehicle:currentVehicle,
+date:serviceDate.value,
+type:serviceType.value,
+vendor:vendor.value,
+details:serviceDetails.value,
+mileage:Number(serviceMileage.value)||0,
+cost:Number(serviceCost.value)||0,
+invoice:serviceInvoice.value
+
+};
+
+if(editingMaintenance!==null){
+
+maintenance[editingMaintenance]=rec;
+editingMaintenance=null;
+
+}else{
+
+maintenance.push(rec);
+
+}
+
+saveData();
+renderMaintenance();
+clearMaintenanceForm();
+renderFleet();
+
+}
+
+function editMaintenance(index){
+
+let m=maintenance[index];
+
+serviceDate.value=m.date;
+serviceType.value=m.type;
+vendor.value=m.vendor;
+serviceDetails.value=m.details;
+serviceMileage.value=m.mileage;
+serviceCost.value=m.cost;
+serviceInvoice.value=m.invoice||"";
+
+editingMaintenance=index;
+
+window.scrollTo(0,0);
+
+}
+
+function deleteMaintenance(index){
+
+if(confirm("Delete record?")){
+
+maintenance.splice(index,1);
+
+saveData();
+renderMaintenance();
+renderFleet();
+
+}
+
+}
+
+function clearMaintenanceForm(){
+
+serviceDate.value="";
+serviceType.value="";
+vendor.value="";
+serviceDetails.value="";
+serviceMileage.value="";
+serviceCost.value="";
+serviceInvoice.value="";
+
+editingMaintenance=null;
+
+}
+
+function renderMaintenance(){
+
+let rows="";
+
+maintenance.forEach((m,i)=>{
+
+if(m.vehicle===currentVehicle){
+
+rows+=`<tr>
+
+<td>${m.date||""}</td>
+<td>${m.type||""}</td>
+<td>${m.vendor||""}</td>
+<td>${m.details||""}</td>
+<td>${m.mileage||""}</td>
+<td>$${m.cost||0}</td>
+<td>${m.invoice||""}</td>
+
+<td>
+
+<button onclick="editMaintenance(${i})">Edit</button>
+<button onclick="deleteMaintenance(${i})">Delete</button>
+
+</td>
+
+</tr>`;
+
+}
+
+});
+
+maintenanceTable.innerHTML=rows;
+
+}
+
+function uploadVehicleFiles(){
+
+let files = vehicleFilesInput = document.getElementById("vehicleFiles").files;
+
+if(!files.length) return;
+
+for(let i=0;i<files.length;i++){
+
+let reader = new FileReader();
+
+reader.onload=function(e){
+
+vehicleFiles.push({
+
+vehicle:currentVehicle,
+name:files[i].name,
+data:e.target.result
+
+});
+
+saveData();
+renderVehicleFiles();
+
+};
+
+reader.readAsDataURL(files[i]);
+
+}
+
+document.getElementById("vehicleFiles").value="";
+
+}
+
+function renderVehicleFiles(){
+
+let rows="";
+
+vehicleFiles.forEach((f,i)=>{
+
+if(f.vehicle===currentVehicle){
+
+rows+=`<tr>
+
+<td>${f.name}</td>
+
+<td>
+
+<a href="${f.data}" download="${f.name}">Download</a>
+<button onclick="deleteVehicleFile(${i})">Delete</button>
+
+</td>
+
+</tr>`;
+
+}
+
+});
+
+vehicleFilesTable.innerHTML=rows;
+
+}
+
+function deleteVehicleFile(index){
+
+if(confirm("Delete file?")){
+
+vehicleFiles.splice(index,1);
+
+saveData();
+renderVehicleFiles();
+
+}
+
+}
+
+function lookupYearlyCost(){
+
+let year = document.getElementById("lookupYear").value;
+
+if(!year){
+
+alert("Please enter a year");
+return;
+
+}
+
+let total = maintenance
+.filter(m => m.date && m.cost && new Date(m.date).getFullYear() === Number(year))
+.reduce((sum, m) => sum + Number(m.cost || 0), 0);
+
+document.getElementById("yearlyCostResult").innerText =
+`Total Maintenance Cost for ${year}: $${total}`;
+
+}
+
+renderFleet();
+
+</script>
+
+</body>
+</html>
